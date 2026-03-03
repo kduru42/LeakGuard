@@ -60,10 +60,10 @@ pip install -r requirements.txt
 
 ### 2. Set Your API Key
 
-```bash
-cp .env.example .env
-# Edit .env and add your OpenAI key:
-# OPENAI_API_KEY=sk-...
+Create a `.env` file in the project root:
+
+```
+OPENAI_API_KEY=sk-...
 ```
 
 ### 3. Start the Server
