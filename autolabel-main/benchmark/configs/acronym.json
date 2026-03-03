@@ -1,0 +1,30 @@
+{
+    "task_name": "AcronymExtraction",
+    "task_type": "attribute_extraction",
+    "dataset": {
+        "text_column": "example",
+        "delimiter": ","
+    },
+    "model": {
+        "provider": "openai",
+        "name": "gpt-3.5-turbo"
+    },
+    "prompt": {
+        "task_guidelines": "You are an expert at extracting acronyms from text. Your job is to extract acronyms mentioned in the text. Acronyms are short forms (abbreviations) or long forms (full form of something).",
+        "output_guidelines": "You will return the extracted attributes as a JSON with the following keys:\n{attribute_json}. Don't output anything other than the final JSON with the required keys in your response.",
+        "attributes": [
+            {
+              "name": "Long",
+              "description": "A list containing all instances of full forms or expansions in the text."
+            },
+            {
+              "name": "Short",
+              "description": "A list containing all instances of abbreviations (short forms) in the text."
+            }
+        ],
+        "example_template": "Example: {example}\nOutput:\n{output_dict}",
+        "few_shot_examples": "data/acronym/seed.csv",
+        "few_shot_selection": "semantic_similarity",
+        "few_shot_num": 5
+    }
+}

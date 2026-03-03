@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecretHunter - Credential Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a25;
+            --border-color: #2a2a3a;
+            --text-primary: #e4e4e7;
+            --text-secondary: #71717a;
+            --text-muted: #52525b;
+            --accent-cyan: #22d3ee;
+            --accent-green: #4ade80;
+            --accent-red: #f87171;
+            --accent-yellow: #fbbf24;
+            --accent-purple: #a78bfa;
+            --glow-cyan: rgba(34, 211, 238, 0.15);
+            --glow-green: rgba(74, 222, 128, 0.15);
+            --glow-red: rgba(248, 113, 113, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(34, 211, 238, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+        .upload-panel {
+            width: 400px;
+            min-width: 400px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+        .logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .logo-text {
+            font-size: 24px; font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .logo-subtitle { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; }
+
+        .server-status {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; background: var(--bg-dark);
+            border-radius: 8px; margin-bottom: 20px; font-size: 13px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-yellow); }
+        .status-dot.connected { background: var(--accent-green); }
+        .status-dot.error { background: var(--accent-red); }
+
+        .drop-zone {
+            flex: 1;
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 16px; transition: all 0.3s ease; cursor: pointer;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.05);
+        }
+        .drop-zone-icon {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: var(--bg-dark); border: 2px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; transition: all 0.3s ease;
+        }
+        .drop-zone:hover .drop-zone-icon {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 30px var(--glow-cyan);
+        }
+        .drop-zone-text { font-size: 16px; font-weight: 500; color: var(--text-secondary); }
+        .drop-zone-hint { font-size: 13px; color: var(--text-muted); }
+        .file-input { display: none; }
+
+        .file-preview {
+            display: none; background: var(--bg-dark);
+            border-radius: 12px; padding: 16px; margin-top: 16px;
+            border: 1px solid var(--border-color);
+        }
+        .file-preview.show { display: block; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .file-info { display: flex; align-items: center; gap: 12px; }
+        .file-icon {
+            width: 40px; height: 40px; background: var(--glow-cyan);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: var(--accent-cyan);
+        }
+        .file-details { flex: 1; }
+        .file-name { font-family: 'JetBrains Mono', monospace; font-size: 14px; word-break: break-all; }
+        .file-size { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .file-remove {
+            background: none; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 8px; border-radius: 6px;
+        }
+        .file-remove:hover { background: var(--glow-red); color: var(--accent-red); }
+
+        .scan-btn {
+            margin-top: 20px; padding: 16px 24px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none; border-radius: 12px; color: var(--bg-dark);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; transition: all 0.3s ease;
+        }
+        .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .scan-btn:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(34, 211, 238, 0.3); }
+        .scan-btn.scanning { background: var(--bg-dark); border: 2px solid var(--accent-cyan); color: var(--accent-cyan); }
+
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid transparent; border-top-color: currentColor;
+            border-radius: 50%; animation: spin 0.8s linear infinite; display: none;
+        }
+        .scan-btn.scanning .spinner { display: block; }
+        .scan-btn.scanning .btn-text { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .stats-panel { margin-top: 24px; display: none; }
+        .stats-panel.show { display: block; animation: slideUp 0.3s ease; }
+        .stats-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 12px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-card { background: var(--bg-dark); border-radius: 10px; padding: 14px; border: 1px solid var(--border-color); }
+        .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; }
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.red { color: var(--accent-red); }
+        .stat-value.cyan { color: var(--accent-cyan); }
+        .stat-value.yellow { color: var(--accent-yellow); }
+        .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; }
+
+        .chat-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg-dark); }
+        .chat-header {
+            padding: 20px 24px; border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .chat-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .chat-title-dot {
+            width: 8px; height: 8px; background: var(--accent-green);
+            border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .chat-actions { display: flex; gap: 8px; }
+        .chat-action-btn {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            color: var(--text-secondary); padding: 8px 14px; border-radius: 8px;
+            font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+        }
+        .chat-action-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--accent-cyan); }
+
+        .progress-container { padding: 0 24px 24px; display: none; }
+        .progress-container.show { display: block; }
+        .progress-bar { height: 4px; background: var(--bg-card); border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple)); width: 0%; transition: width 0.3s ease; }
+        .progress-text { font-size: 12px; color: var(--text-muted); margin-top: 8px; text-align: center; }
+
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 24px;
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: var(--bg-dark); }
+        .chat-messages::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        .message { display: flex; gap: 12px; animation: messageIn 0.3s ease; }
+        @keyframes messageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .message-avatar {
+            width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; flex-shrink: 0;
+        }
+        .message-avatar.system { background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); }
+        .message-avatar.finding { background: var(--bg-card); border: 1px solid var(--border-color); }
+
+        .message-content { flex: 1; min-width: 0; }
+        .message-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .message-sender { font-weight: 600; font-size: 14px; }
+        .message-time { font-size: 11px; color: var(--text-muted); }
+        .message-body {
+            background: var(--bg-card); border-radius: 12px; border-top-left-radius: 4px;
+            padding: 14px 16px; font-size: 14px; line-height: 1.6;
+            border: 1px solid var(--border-color);
+        }
+
+        .finding-card { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; }
+        .finding-header {
+            padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .finding-rule {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            color: var(--accent-purple); background: rgba(167, 139, 250, 0.1);
+            padding: 4px 10px; border-radius: 6px;
+        }
+        .finding-label { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; text-transform: uppercase; }
+        .finding-label.true-positive { background: var(--glow-red); color: var(--accent-red); }
+        .finding-label.false-positive { background: var(--glow-green); color: var(--accent-green); }
+
+        .finding-body { padding: 16px; }
+        .finding-snippet {
+            font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            background: var(--bg-dark); padding: 12px; border-radius: 8px;
+            white-space: pre-wrap; word-break: break-all;
+            color: var(--text-secondary); margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .finding-explanation { font-size: 13px; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 8px; }
+        .finding-explanation-icon { color: var(--accent-cyan); }
+
+        .welcome-message { text-align: center; padding: 60px 40px; color: var(--text-muted); }
+        .welcome-icon { font-size: 48px; margin-bottom: 20px; opacity: 0.5; }
+        .welcome-title { font-size: 20px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+        .welcome-text { font-size: 14px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    
+    <div class="container">
+        <div class="upload-panel">
+            <div class="logo">
+                <div class="logo-icon">🔐</div>
+                <div>
+                    <div class="logo-text">SecretHunter</div>
+                    <div class="logo-subtitle">Credential Scanner</div>
+                </div>
+            </div>
+
+            <div class="server-status">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Checking server...</span>
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <div class="drop-zone-text">Drop your file here</div>
+                <div class="drop-zone-hint">Supports .py, .js, .json, .env, .yaml and more</div>
+                <input type="file" class="file-input" id="fileInput">
+            </div>
+
+            <div class="file-preview" id="filePreview">
+                <div class="file-info">
+                    <div class="file-icon">📄</div>
+                    <div class="file-details">
+                        <div class="file-name" id="fileName"></div>
+                        <div class="file-size" id="fileSize"></div>
+                    </div>
+                    <button class="file-remove" id="fileRemove">✕</button>
+                </div>
+            </div>
+
+            <button class="scan-btn" id="scanBtn" disabled>
+                <span class="btn-text">🔍 Start Scanning</span>
+                <div class="spinner"></div>
+            </button>
+
+            <div class="stats-panel" id="statsPanel">
+                <div class="stats-title">Scan Results</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value cyan" id="statTotal">0</div>
+                        <div class="stat-label">Total Findings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value red" id="statSecrets">0</div>
+                        <div class="stat-label">Real Secrets</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value green" id="statFiltered">0</div>
+                        <div class="stat-label">Filtered Out</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value yellow" id="statTime">0s</div>
+                        <div class="stat-label">Time Taken</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-panel">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <div class="chat-title-dot"></div>
+                    Analysis Output
+                </div>
+                <div class="chat-actions">
+                    <button class="chat-action-btn" id="clearChat">🗑️ Clear</button>
+                    <button class="chat-action-btn" id="exportResults">📥 Export</button>
+                </div>
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Analyzing...</div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message" id="welcomeMessage">
+                    <div class="welcome-icon">🛡️</div>
+                    <div class="welcome-title">Ready to Scan</div>
+                    <div class="welcome-text">
+                        Upload a source code file to detect hardcoded secrets, API keys, passwords, and other sensitive credentials.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+
+        let selectedFile = null;
+        let scanResults = [];
+        let serverConnected = false;
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileRemove = document.getElementById('fileRemove');
+        const scanBtn = document.getElementById('scanBtn');
+        const statsPanel = document.getElementById('statsPanel');
+        const chatMessages = document.getElementById('chatMessages');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        async function checkServer() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/health`);
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    serverConnected = true;
+                    statusDot.classList.add('connected');
+                    statusText.textContent = `Backend connected (${data.rules_count} rules)`;
+                }
+            } catch (error) {
+                serverConnected = false;
+                statusDot.classList.add('error');
+                statusText.textContent = 'Backend not running - Start server.py';
+            }
+        }
+        checkServer();
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+        fileRemove.addEventListener('click', () => {
+            selectedFile = null;
+            filePreview.classList.remove('show');
+            scanBtn.disabled = true;
+            fileInput.value = '';
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            filePreview.classList.add('show');
+            scanBtn.disabled = false;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // =====================================================================
+        // STREAMING SCAN - Results appear one-by-one as they complete!
+        // =====================================================================
+        scanBtn.addEventListener('click', startScan);
+
+        async function startScan() {
+            if (!selectedFile || !serverConnected) {
+                if (!serverConnected) alert('Backend server is not running!');
+                return;
+            }
+
+            // UI Setup
+            scanBtn.classList.add('scanning');
+            scanBtn.disabled = true;
+            document.getElementById('welcomeMessage').style.display = 'none';
+            progressContainer.classList.add('show');
+            scanResults = [];
+            chatMessages.innerHTML = '';
+
+            const startTime = Date.now();
+            let truePositives = 0;
+            let falsePositives = 0;
+
+            addSystemMessage('🚀 Starting security scan...', 'Reading file contents');
+
+            try {
+                // Read file
+                const fileContent = await readFile(selectedFile);
+                addSystemMessage('📝 File loaded', `${fileContent.split('\n').length} lines to analyze`);
+
+                // Stage 1: Rule-based scanning
+                updateProgress(10, 'Running rule-based detection...');
+                addSystemMessage('🔍 Stage 1: Rule-Based Detection', 'Applying regex patterns...');
+
+                const scanResponse = await fetch(`${API_BASE_URL}/api/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: fileContent })
+                });
+
+                const scanData = await scanResponse.json();
+                const findings = scanData.findings;
+
+                addSystemMessage('✅ Pattern matching complete', `Found ${findings.length} potential secrets`);
+
+                if (findings.length === 0) {
+                    addSystemMessage('🎉 No secrets detected', 'The file appears to be clean');
+                    finishScan(0, 0, 0, startTime);
+                    return;
+                }
+
+                // Stage 2: STREAMING classification
+                updateProgress(20, `Classifying ${findings.length} findings (streaming)...`);
+                addSystemMessage('🤖 Stage 2: AI Classification', `Streaming ${findings.length} results in parallel...`);
+
+                // Use fetch with streaming response
+                const classifyResponse = await fetch(`${API_BASE_URL}/api/classify-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ findings: findings })
+                });
+
+                if (!classifyResponse.ok) {
+                    const error = await classifyResponse.json();
+                    throw new Error(error.error || 'Classification failed');
+                }
+
+                // Read the stream
+                const reader = classifyResponse.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let completed = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Process complete SSE events
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop(); // Keep incomplete data in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                if (data.done) {
+                                    // Stream complete
+                                    console.log('Stream complete:', data);
+                                    continue;
+                                }
+                                
+                                if (data.keepalive) {
+                                    continue;
+                                }
+                                
+                                // Got a result! Display it immediately
+                                completed++;
+                                const finding = data.finding;
+                                finding.classification = {
+                                    label: data.label,
+                                    reason: data.reason
+                                };
+                                
+                                scanResults.push(finding);
+                                
+                                if (data.label === 'TRUE_POSITIVE') {
+                                    truePositives++;
+                                } else {
+                                    falsePositives++;
+                                }
+                                
+                                // Update progress
+                                const progress = 20 + (75 * completed / findings.length);
+                                updateProgress(progress, `Classified ${completed}/${findings.length}...`);
+                                
+                                // Show the finding immediately!
+                                addFindingMessage(finding);
+                                
+                            } catch (e) {
+                                console.error('Parse error:', e, line);
+                            }
+                        }
+                    }
+                }
+
+                finishScan(findings.length, truePositives, falsePositives, startTime);
+
+            } catch (error) {
+                addSystemMessage('❌ Error', error.message);
+                console.error(error);
+                finishScan(0, 0, 0, startTime);
+            }
+        }
+
+        function finishScan(total, secrets, filtered, startTime) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            updateProgress(100, 'Scan complete!');
+
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+                scanBtn.classList.remove('scanning');
+                scanBtn.disabled = false;
+
+                document.getElementById('statTotal').textContent = total;
+                document.getElementById('statSecrets').textContent = secrets;
+                document.getElementById('statFiltered').textContent = filtered;
+                document.getElementById('statTime').textContent = elapsed + 's';
+                statsPanel.classList.add('show');
+
+                if (total > 0) {
+                    addSystemMessage('📊 Scan Complete', `Found ${secrets} real secrets, filtered ${filtered} false positives in ${elapsed}s`);
+                }
+            }, 500);
+        }
+
+        function addSystemMessage(title, content) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const html = `
+                <div class="message">
+                    <div class="message-avatar system">🛡️</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">SecretHunter</span>
+                            <span class="message-time">${time}</span>
+                        </div>
+                        <div class="message-body"><strong>${title}</strong><br>${content}</div>
+                    </div>
+                </div>
+            `;
+            chatMessages.insertAdjacentHTML('beforeend', html);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addFindingMessage(finding) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const isSecret = finding.classification.label === 'TRUE_POSITIVE';
+            const labelClass = isSecret ? 'true-positive' : 'false-positive';
+            const labelText = isSecret ? '🚨 Secret' : '✅ Safe';
+            const avatar = isSecret ? '🔴' : '🟢';
+
+            const html = `
+                <div class="message">
+                    <div class="message-avatar finding">${avatar}</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">Line ${finding.line}</span>
+                            <span class="message-time">${time}</span>
+                        </div>
+                        <div class="finding-card">
+                            <div class="finding-header">
+                                <span class="finding-rule">${finding.rule}</span>
+                                <span class="finding-label ${labelClass}">${labelText}</span>
+                            </div>
+                            <div class="finding-body">
+                                <div class="finding-snippet">${escapeHtml(finding.snippet)}</div>
+                                <div class="finding-explanation">
+                                    <span class="finding-explanation-icon">💡</span>
+                                    <span>${finding.classification.reason}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatMessages.insertAdjacentHTML('beforeend', html);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = text;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.getElementById('clearChat').addEventListener('click', () => {
+            chatMessages.innerHTML = `
+                <div class="welcome-message">
+                    <div class="welcome-icon">🛡️</div>
+                    <div class="welcome-title">Ready to Scan</div>
+                    <div class="welcome-text">Upload a source code file to detect hardcoded secrets.</div>
+                </div>
+            `;
+            statsPanel.classList.remove('show');
+            scanResults = [];
+        });
+
+        document.getElementById('exportResults').addEventListener('click', () => {
+            if (scanResults.length === 0) {
+                alert('No results to export. Run a scan first.');
+                return;
+            }
+            const jsonl = scanResults.map(r => JSON.stringify(r)).join('\n');
+            const blob = new Blob([jsonl], { type: 'application/jsonl' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'scan_results.jsonl';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
